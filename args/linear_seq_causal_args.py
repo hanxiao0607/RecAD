@@ -11,7 +11,7 @@ def arg_parser():
 
     # Meta
     parser.add_argument('--seed', type=int, default=42, help='Random seed (default: 42)')
-    parser.add_argument('--device', type=str, default='cuda:0')
+    parser.add_argument('--device', type=str, default='cuda:1')
     parser.add_argument('--dataset_name', type=str, default='linear')
 
     # GVAR

@@ -5,7 +5,7 @@ def arg_parser():
     parser.add_argument('--T', type=int, default=50, help='Length of the time series (default: 500)')
     parser.add_argument('--training_size', type=int, default=1000)
     parser.add_argument('--testing_size', type=int, default=5000)
-    parser.add_argument('--preprocessing_data', type=int, default=0)
+    parser.add_argument('--preprocessing_data', type=int, default=1)
     parser.add_argument('--adlength', type=int, default=3)
     parser.add_argument('--adtype', type=str, default='non_causal')
 
