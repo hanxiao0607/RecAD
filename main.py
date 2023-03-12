@@ -7,7 +7,7 @@ warnings.filterwarnings("ignore")
 
 def main(argv):
     dataset = argv[1]
-    if dataset == 'linear':
+    if dataset == 'Linear':
         adlength = int(argv[2])
         adtype = argv[3]
         if adlength == 1:
@@ -20,7 +20,7 @@ def main(argv):
             else:
                 print('causal')
                 parser = linear_seq_causal_args.arg_parser()
-    elif dataset == 'lv':
+    elif dataset == 'LV':
         adlength = int(argv[2])
         adtype = argv[3]
         if adlength == 1:
