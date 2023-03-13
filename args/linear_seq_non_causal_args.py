@@ -26,7 +26,7 @@ def arg_parser():
     parser.add_argument('--initial-lr', type=float, default=0.0001, help='Initial learning rate (default: 0.0001)')
     parser.add_argument('--beta_1', type=float, default=0.9, help='beta_1 value for the Adam optimiser (default: 0.9)')
     parser.add_argument('--beta_2', type=float, default=0.999, help='beta_2 value for the Adam optimiser (default: 0.999)')
-    parser.add_argument('--training_gvar', type=int, default=0)
+    parser.add_argument('--training_gvar', type=int, default=1)
 
     # RecAD
     parser.add_argument('--recourse_model_max_epoch', type=int, default=50)
@@ -48,7 +48,7 @@ def arg_parser():
     parser.add_argument('--ad_model_beta', type=float, default=0.5)
     parser.add_argument('--ad_downsampling', type=float, default=1)
     parser.add_argument('--quantile', type=float, default=0.995)
-    parser.add_argument('--training_ad_model', type=int, default=0)
+    parser.add_argument('--training_ad_model', type=int, default=1)
 
     # Baseline
     parser.add_argument('--get_baseline_GVAR', type=int, default=0)
