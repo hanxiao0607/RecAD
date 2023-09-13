@@ -39,6 +39,7 @@ class MultiLotkaVolterra:
         eps_n = []
         eps_ab = []
         lst_labels = []
+        lst_anomaly_term = []
         for _ in tqdm(range(n)):
             xs_0 = np.random.uniform(10, 20, size=(self.p, ))
             ys_0 = np.random.uniform(10, 20, size=(self.p, ))
@@ -58,6 +59,7 @@ class MultiLotkaVolterra:
             eps_x_ab = np.zeros((t, self.p))
             eps_y_ab = np.zeros((t, self.p))
             label = np.zeros(t)
+            anomaly_term = np.zeros((t, self.p*2))
             xs_ab[0, :] = xs_0
             ys_ab[0, :] = ys_0
             t_p = np.random.randint((0.5*t)//downsample_factor, t//downsample_factor, size=1)
@@ -74,16 +76,18 @@ class MultiLotkaVolterra:
                     xs[k + 1, :], ys[k + 1, :], eps_x[k + 1, :], eps_y[k + 1, :], xs_ab[k + 1, :], ys_ab[k + 1, :], \
                     eps_x_ab[k + 1, :], eps_y_ab[k + 1, :], label[k + 1] = self.next(xs[k, :], ys[k, :], xs_ab[k, :], ys_ab[k, :],
                                                                        dt, ab=1, pp_p=pp_p, feature_p=feature_p, adtype=self.adtype, seq_k=count)
+                    anomaly_term[k+1, feature_p + (pp_p * self.p)] = 1
                     count += 1
                 else:
                     xs[k + 1, :], ys[k + 1, :], eps_x[k + 1, :], eps_y[k + 1, :], xs_ab[k + 1, :], ys_ab[k + 1, :], \
-                    eps_x_ab[k + 1, :], eps_y_ab[k + 1, :], label[k + 1]= self.next(xs[k, :], ys[k, :], xs_ab[k, :], ys_ab[k, :], dt)
+                    eps_x_ab[k + 1, :], eps_y_ab[k + 1, :], label[k + 1] = self.next(xs[k, :], ys[k, :], xs_ab[k, :], ys_ab[k, :], dt)
 
             lst_n.extend([np.concatenate((xs[::downsample_factor, :], ys[::downsample_factor, :]), 1)])
             eps_n.extend([np.concatenate((eps_x[::downsample_factor, :], eps_y[::downsample_factor, :]), 1)])
             lst_ab.extend([np.concatenate((xs_ab[::downsample_factor, :], ys_ab[::downsample_factor, :]), 1)])
             eps_ab.extend([np.concatenate((eps_x_ab[::downsample_factor, :], eps_y_ab[::downsample_factor, :]), 1)])
             lst_labels.append(label[::downsample_factor])
+            lst_anomaly_term.append(anomaly_term[::downsample_factor])
 
         causal_struct = np.zeros((self.p * 2, self.p * 2))
         signed_causal_struct = np.zeros((self.p * 2, self.p * 2))
@@ -101,8 +105,9 @@ class MultiLotkaVolterra:
 
             signed_causal_struct[j, int(np.floor((j + self.d) / self.d) * self.d - 1 + self.p - self.d + 1):int(np.floor((j + self.d) / self.d) * self.d + self.p)] = -1
             signed_causal_struct[j + self.p, int(np.floor((j + self.d) / self.d) * self.d - self.d + 1 - 1):int(np.floor((j + self.d) / self.d) * self.d)] = +1
-
-        return np.array(lst_n)[:, 50:, :], np.array(eps_n)[:, 50:, :], np.array(lst_ab)[:, 50:, :], np.array(eps_ab)[:, 50:, :], np.array(lst_labels)[:, 50:], causal_struct, signed_causal_struct
+        return np.array(lst_n)[:, 50:, :], np.array(eps_n)[:, 50:, :], np.array(lst_ab)[:, 50:, :],\
+                np.array(eps_ab)[:, 50:, :], np.array(lst_labels)[:, 50:], causal_struct, signed_causal_struct,\
+                np.array(lst_anomaly_term)[:, 50:, :]
 
     # Dynamics
     # State transitions using the Runge-Kutta method

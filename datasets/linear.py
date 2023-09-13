@@ -1,6 +1,7 @@
 # Some synthetic datasets with linear dynamics
 import numpy as np
 
+
 def generate_linear_example_ab(n, t, mul=10, a=None, seed=0, adlength=1, adtype='non_causal'):
     """
     @param n: number of replicates.
@@ -14,6 +15,7 @@ def generate_linear_example_ab(n, t, mul=10, a=None, seed=0, adlength=1, adtype=
     eps_n_list = []
     eps_ab_list = []
     label_list = []
+    anomaly_term_list = []
     if a is None:
         a = np.zeros((8,))
     for k in range(8):
@@ -50,6 +52,9 @@ def generate_linear_example_ab(n, t, mul=10, a=None, seed=0, adlength=1, adtype=
         ab[feature_p] += mul
         temp_label = np.zeros(t)
         temp_label[t_p] += 1
+        temp_anomaly_term = np.zeros((t, 4))
+        temp_anomaly_term[t_p, feature_p] = 1
+        anomaly_term_list.append(temp_anomaly_term)
 
         x = np.zeros((t, 1))
         y = np.zeros((t, 1))
@@ -101,4 +106,5 @@ def generate_linear_example_ab(n, t, mul=10, a=None, seed=0, adlength=1, adtype=
                               [1, 1, 0, 0],
                               [0, 1, 1, 0],
                               [0, 1, 1, 1]])
-    return x_n_list, x_ab_list, eps_n_list, eps_ab_list, causal_struct, causal_struct_value, signed_causal_struct, label_list, a
+    return (x_n_list, x_ab_list, eps_n_list, eps_ab_list, causal_struct, causal_struct_value, signed_causal_struct,
+            label_list, a, anomaly_term_list)

@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/ADCAR-TS.iml" filepath="$PROJECT_DIR$/.idea/ADCAR-TS.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/RecAD.iml" filepath="$PROJECT_DIR$/.idea/RecAD.iml" />
     </modules>
   </component>
 </project>

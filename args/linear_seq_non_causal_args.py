@@ -11,7 +11,7 @@ def arg_parser():
 
     # Meta
     parser.add_argument('--seed', type=int, default=42, help='Random seed (default: 42)')
-    parser.add_argument('--device', type=str, default='cuda:0')
+    parser.add_argument('--device', type=str, default='cuda:1')
     parser.add_argument('--dataset_name', type=str, default='linear')
 
     # GVAR
@@ -38,6 +38,7 @@ def arg_parser():
     parser.add_argument('--recourse_model_training', type=int, default=1)
     parser.add_argument('--recourse_model_hidden_dim', type=int, default=50)
     parser.add_argument('--recourse_look_forward', type=int, default=1)
+    parser.add_argument('--root_cause_quantile',type=float, default=0.005)
 
     # USAD
     parser.add_argument('--ad_model_K', type=int, default=5)
@@ -51,10 +52,10 @@ def arg_parser():
     parser.add_argument('--training_ad_model', type=int, default=1)
 
     # Baseline
-    parser.add_argument('--get_baseline_GVAR', type=int, default=0)
-    parser.add_argument('--get_baseline_VAR', type=int, default=0)
-    parser.add_argument('--get_baseline_fc', type=int, default=0)
-    parser.add_argument('--get_baseline_linear', type=int, default=0)
-    parser.add_argument('--get_baseline_lstm', type=int, default=0)
+    parser.add_argument('--get_baseline_GVAR', type=int, default=1)
+    parser.add_argument('--get_baseline_VAR', type=int, default=1)
+    parser.add_argument('--get_baseline_fc', type=int, default=1)
+    parser.add_argument('--get_baseline_linear', type=int, default=1)
+    parser.add_argument('--get_baseline_lstm', type=int, default=1)
 
     return parser

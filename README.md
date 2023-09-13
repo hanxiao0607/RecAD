@@ -35,9 +35,9 @@ Clone the template project, replacing ``my-project`` with the name of the projec
 
 Run and test:
 
-        python3 main.py Linear --adlength 1 --adtype non_causal
+        python3 main.py Linear 1 non_causal
         or
-        python3 main.py LV --adlength 3 --adtype non_causal
+        python3 main.py LV 3 non_causal
         or
         python3 main.py MSDS
 

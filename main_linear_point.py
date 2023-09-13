@@ -1,0 +1,50 @@
+from trainer import RecAD_trainer
+from utils import utils
+from args import linear_point_args, linear_seq_non_causal_args, linear_seq_causal_args, lv_point_args, lv_seq_non_causal_args, lv_seq_causal_args, MSDS_args
+import warnings
+import sys
+warnings.filterwarnings("ignore")
+
+def main(argv):
+    dataset = argv[1]
+    if dataset == 'Linear':
+        adlength = int(argv[2])
+        adtype = argv[3]
+        if adlength == 1:
+            print('point')
+            parser = linear_point_args.arg_parser()
+        else:
+            if adtype == 'non_causal':
+                print('non_causal')
+                parser = linear_seq_non_causal_args.arg_parser()
+            else:
+                print('causal')
+                parser = linear_seq_causal_args.arg_parser()
+    elif dataset == 'LV':
+        adlength = int(argv[2])
+        adtype = argv[3]
+        if adlength == 1:
+            print('point')
+            parser = lv_point_args.arg_parser()
+        else:
+            if adtype == 'non_causal':
+                print('non_causal')
+                parser = lv_seq_non_causal_args.arg_parser()
+            else:
+                print('causal')
+                parser = lv_seq_causal_args.arg_parser()
+    elif dataset == 'MSDS':
+        parser = MSDS_args.arg_parser()
+    else:
+        NotImplementedError
+    args, unknown = parser.parse_known_args()
+    for seed in range(10):
+        print('seed: ', seed)
+        print("========================================")
+        utils.set_seed(seed)
+        options = vars(args)
+        RecAD_trainer.RecAD(options)
+
+
+if __name__ == "__main__":
+    main(sys.argv)

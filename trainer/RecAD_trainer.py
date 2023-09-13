@@ -47,6 +47,7 @@ class RecAD(object):
         self.ad_model_alpha = options['ad_model_alpha']
         self.ad_model_beta = options['ad_model_beta']
         self.ad_model_downsampling = options['ad_downsampling']
+        self.root_cause_quantile = options['root_cause_quantile']
         self.recourse_model_max_epoch = options['recourse_model_max_epoch']
         self.recourse_model_lr = options['recourse_model_lr']
         self.recourse_model_training = options['recourse_model_training']
@@ -71,6 +72,9 @@ class RecAD(object):
         self._get_mse()
         self._anomaly_detection()
         self._get_gvar()
+        if self.dataset_name != 'MSDS':
+            self._get_normal_noise()
+            self._get_root_cause_results()
         self._get_recourse_model()
 
         if self.dataset_name == 'MSDS':
@@ -101,7 +105,7 @@ class RecAD(object):
             self.adtype = self.options['adtype']
             self.save_parm = self.options['dataset_name'] + '_' + str(self.options['adlength']) + '_' + str(self.options['adtype'])
             if self.preprocessing == 1:
-                x_n_list, x_ab_list, eps_n_list, eps_ab_list, causal_struct, causal_struct_value, signed_causal_struct, label_list, a = \
+                x_n_list, x_ab_list, eps_n_list, eps_ab_list, causal_struct, causal_struct_value, signed_causal_struct, label_list, a, lst_root_cause = \
                     generate_linear_example_ab(n=int(self.training_size +  self.testing_size), t=self.T, mul=2, seed=self.seed, adlength=self.adlength, adtype=self.adtype)
                 np.save(f'data/Linear_{self.save_parm}_x_n_list', x_n_list)
                 np.save(f'data/Linear_{self.save_parm}_eps_n_list', eps_n_list)
@@ -110,6 +114,7 @@ class RecAD(object):
                 np.save(f'data/Linear_{self.save_parm}_label_list', label_list)
                 np.save(f'data/Linear_{self.save_parm}_causal_struct', causal_struct_value)
                 np.save(f'data/Linear_{self.save_parm}_a', a)
+                np.save(f'data/Linear_{self.save_parm}_lst_root_cause', lst_root_cause)
             else:
                 x_n_list = np.load(f'data/Linear_{self.save_parm}_x_n_list.npy')
                 eps_n_list = np.load(f'data/Linear_{self.save_parm}_eps_n_list.npy')
@@ -118,6 +123,7 @@ class RecAD(object):
                 label_list = np.load(f'data/Linear_{self.save_parm}_label_list.npy')
                 causal_struct_value = np.load(f'data/Linear_{self.save_parm}_causal_struct.npy')
                 a = np.load(f'data/Linear_{self.save_parm}_a.npy')
+                lst_root_cause = np.load(f'data/Linear_{self.save_parm}_lst_root_cause.npy')
 
             self.a = a
             self.train_x = x_n_list[:self.training_size]
@@ -135,6 +141,7 @@ class RecAD(object):
             self.test_x_norm = (self.test_x - self.mean) / self.std
 
             self.test_label = label_list[self.training_size:]
+            self.test_root_cause_label = lst_root_cause[self.training_size:]
 
         elif self.dataset_name == 'MSDS':
             self.p = 10
@@ -228,7 +235,7 @@ class RecAD(object):
                                      gamma=self.gamma_lv,
                                      delta=self.delta_lv, sigma=self.sigma_lv, adlength=self.adlength, adtype=self.adtype)
             if self.preprocessing == 1:
-                x_n_list, eps_n_list, x_ab_list, eps_ab_list, label_list, causal_struct, _ = self.mlv.simulate(n=int(self.training_size +
+                x_n_list, eps_n_list, x_ab_list, eps_ab_list, label_list, causal_struct, _ , lst_root_cause= self.mlv.simulate(n=int(self.training_size +
                                                                                self.testing_size),
                                                                          t=self.T, downsample_factor=self.downsample_factor,
                                                                          dt=self.dt, seed=self.seed)
@@ -238,6 +245,7 @@ class RecAD(object):
                 np.save(f'data/LV_{self.save_parm}_eps_ab_list', eps_ab_list)
                 np.save(f'data/LV_{self.save_parm}_label_list', label_list)
                 np.save(f'data/LV_{self.save_parm}_causal_struct', causal_struct)
+                np.save(f'data/LV_{self.save_parm}_lst_root_cause', lst_root_cause)
             else:
                 x_n_list = np.load(f'data/LV_{self.save_parm}_x_n_list.npy')
                 eps_n_list = np.load(f'data/LV_{self.save_parm}_eps_n_list.npy')
@@ -245,6 +253,7 @@ class RecAD(object):
                 eps_ab_list = np.load(f'data/LV_{self.save_parm}_eps_ab_list.npy')
                 label_list = np.load(f'data/LV_{self.save_parm}_label_list.npy')
                 causal_struct = np.load(f'data/LV_{self.save_parm}_causal_struct.npy')
+                lst_root_cause = np.load(f'data/LV_{self.save_parm}_lst_root_cause.npy')
 
             self.a = causal_struct
             self.train_x = x_n_list[:self.training_size]
@@ -262,6 +271,8 @@ class RecAD(object):
             self.test_x_norm = (self.test_x - self.mean) / self.std
 
             self.test_label = label_list[self.training_size:]
+            self.test_root_cause_label = lst_root_cause[self.training_size:]
+
         else:
             NotImplementedError
         print('Finished preprocessing the dataset.')
@@ -463,6 +474,75 @@ class RecAD(object):
             l2_our = np.mean(total_l2_our)
             print(f'MSE for GVAR {l2_gvar}, MSE for our {l2_our}')
 
+    def _get_normal_noise(self):
+        normal_noise = []
+        train_data = self.train_x_norm
+        if len(train_data.shape) > 2:
+            for i in range(len(train_data)):
+                sample_org = train_data[i].copy()
+                for j in range(self.ad_model_K, len(sample_org)):
+                    window_org = torch.tensor(sample_org[np.newaxis, j-self.ad_model_K:j, :]).float().to(self.device)
+                    y_cf_gvar = self.senn_1(window_org[:, -self.K - 1:-1, :])[0]
+                    delta_pred = window_org[:, -1, :] - y_cf_gvar.data
+                    normal_noise.append(delta_pred.cpu().numpy())
+        else:
+            for j in range(self.ad_model_K, len(train_data)):
+                window_org = torch.tensor(train_data[np.newaxis, j - self.ad_model_K:j, :]).float().to(self.device)
+                y_cf_gvar = self.senn_1(window_org[:, -self.K - 1:-1, :])[0]
+                delta_pred = window_org[:, -1, :] - y_cf_gvar.data
+                normal_noise.append(delta_pred.cpu().numpy())
+        self.normal_noise_lower = np.quantile(np.array(normal_noise), self.root_cause_quantile)
+        self.normal_noise_upper = np.quantile(np.array(normal_noise), 1-self.root_cause_quantile)
+
+    def _get_root_cause_results(self):
+        test_data = self.test_x_norm
+        test_noise = []
+        test_label = []
+        pred_label = []
+        if len(test_data.shape) > 2:
+            gt_y_label = np.array(self.test_label)[:, self.ad_model_K:]
+            for i in range(len(test_data)):
+                sample_org = test_data[i].copy()
+                sample_root_cause_label = self.test_root_cause_label[i].copy()
+                for j in range(self.ad_model_K, len(sample_org)):
+                    window_org = torch.tensor(sample_org[np.newaxis, j - self.ad_model_K:j, :]).float().to(self.device)
+                    y_cf_gvar = self.senn_1(window_org[:, -self.K - 1:-1, :])[0]
+                    delta_pred = window_org[:, -1, :] - y_cf_gvar.data
+                    test_noise.append(delta_pred.cpu().numpy())
+                    test_label.append(sample_root_cause_label[j-1])
+                    pred_label.append((delta_pred.cpu().numpy() > self.normal_noise_upper)
+                                     + (delta_pred.cpu().numpy() < self.normal_noise_lower).astype(int))
+
+
+        else:
+            gt_y_label = np.array(self.test_label)[self.ad_model_K:]
+            for j in range(self.ad_model_K, len(test_data)):
+                window_org = torch.tensor(test_data[np.newaxis, j - self.ad_model_K:j, :]).float().to(self.device)
+                y_cf_gvar = self.senn_1(window_org[:, -self.K - 1:-1, :])[0]
+                delta_pred = window_org[:, -1, :] - y_cf_gvar.data
+                test_noise.append(delta_pred.cpu().numpy())
+                test_label.append(self.test_root_cause_label[j-1])
+                pred_label.append((delta_pred.cpu().numpy() > self.normal_noise_upper)
+                                    + (delta_pred.cpu().numpy() < self.normal_noise_lower).astype(int))
+        test_label = np.concatenate(test_label)
+        pred_label = np.concatenate(pred_label)
+
+        print('Results for root cause analysis.')
+        print(classification_report(y_true=test_label, y_pred=np.concatenate(pred_label), digits=5))
+        print(confusion_matrix(y_true=test_label, y_pred=np.concatenate(pred_label)))
+
+
+    def _get_root_cause(self, x):
+        pred_label = []
+        for i in range(self.ad_model_K, len(x)):
+            window_org = torch.tensor(x[np.newaxis, i - self.ad_model_K:i, :]).float().to(self.device)
+            y_cf_gvar = self.senn_1(window_org[:, -self.K - 1:-1, :])[0]
+            delta_pred = window_org[:, -1, :] - y_cf_gvar.data
+            pred_label.append((delta_pred.cpu().numpy() > self.normal_noise_upper)
+                                + (delta_pred.cpu().numpy() < self.normal_noise_lower).astype(int))
+        return np.array(pred_label)
+
+
     def get_changed_data(self, window, delta_pred, eps_norm=None):
         if self.dataset_name == 'linear':
             if self.adtype == 'non_causal':
@@ -561,13 +641,6 @@ class RecAD(object):
             self.rec_val_label = self.test_label[int(ind * 0.8):ind]
             self.rec_test_label = self.test_label[ind:]
             self.rec_all_label = self.all_label[ind:]
-            # ind = int(len(self.test_x_norm)*0.9)
-            # self.rec_train_x = self.test_x_norm[np.newaxis, :int(ind * 0.8), :]
-            # self.rec_val_x = self.test_x_norm[np.newaxis, int(ind * 0.8):ind, :]
-            # self.rec_test_x = self.test_x_norm[np.newaxis, ind:, :]
-            # self.rec_train_label = self.test_label[np.newaxis, :int(ind * 0.8)]
-            # self.rec_val_label = self.test_label[np.newaxis, int(ind * 0.8):ind]
-            # self.rec_test_label = self.test_label[np.newaxis, ind:]
         else:
             ind = len(self.test_x_norm) // 2
             self.rec_train_x = self.test_x_norm[:int(ind*0.8)]
@@ -617,6 +690,7 @@ class RecAD(object):
                 for i in range(len(self.rec_train_x)):
                     sample_org = self.rec_train_x[i].copy()
                     sample_cf = sample_org.copy()
+                    pred_root_cause = self._get_root_cause(sample_org)
                     early_stop = 0
                     for j in range(self.ad_model_K, len(sample_cf)):
                         if early_stop >= self.recourse_model_early_stop:
