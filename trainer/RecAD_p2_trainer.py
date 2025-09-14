@@ -133,13 +133,13 @@ class RecAD_p2(object):
                 labels = labels.values[::1, 1:]
                 self.all_label = labels
                 labels = np.max(labels, axis=1)
-                self.train_x = df_train.astype(np.float)
+                self.train_x = df_train.astype(np.float32)
                 self.mean = np.mean(self.train_x, axis=0)
                 self.std = np.std(self.train_x, axis=0)
                 self.train_x_norm = ((self.train_x - self.mean) / self.std)
-                self.test_x = df_test.astype(np.float)
+                self.test_x = df_test.astype(np.float32)
                 self.test_x_norm = (self.test_x - self.mean) / self.std
-                self.test_label = labels.astype(np.float)
+                self.test_label = labels.astype(np.float32)
 
                 np.save('data/MSDS_train_x', self.train_x)
                 np.save('data/MSDS_train_x_norm', self.train_x_norm)

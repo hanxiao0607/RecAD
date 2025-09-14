@@ -40,7 +40,8 @@ def arg_parser():
     parser.add_argument('--recourse_look_forward', type=int, default=1)
     parser.add_argument('--root_cause_quantile',type=float, default=0.005)
 
-    # USAD
+    # AD Model
+    parser.add_argument('--ad_model_name', type=str, default='usad', choices=['usad', 'tranad'])
     parser.add_argument('--ad_model_K', type=int, default=5)
     parser.add_argument('--ad_model_hidden_size', type=int, default=20)
     parser.add_argument('--ad_model_n_epochs', type=int, default=25)

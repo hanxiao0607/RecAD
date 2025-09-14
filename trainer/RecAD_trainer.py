@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from models import senn, usad, inet, lstm, RecAD_model
+from models import senn, usad, inet, lstm, RecAD_model, tranad
 from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, average_precision_score
 from sklearn import preprocessing
 import torch.utils.data as data_utils
@@ -97,6 +97,77 @@ class RecAD(object):
             print('Get results for the baseline model lstm:')
             self._get_baseline_other(model_name='lstm', training=1, max_epoch=50)
 
+    def _get_ad_model(self):
+        # window sizes
+        w_size = self.ad_model_K * self.p
+        z_size = self.ad_model_K * self.ad_model_hidden_size  # ignored by TranAD but kept for signature parity
+
+        # --- choose AD model + backend (training/testing) by name ---
+        ad_name = getattr(self.options, 'ad_model_name', None) or self.options.get('ad_model_name', 'usad')
+        ad_name = ad_name.lower()
+
+        if ad_name == 'tranad':
+            # TranAD requires knowing (K, p)
+            self.ad_model = tranad.TranADModel(
+                w_size, z_size, device=self.device,
+                K=self.ad_model_K, p=self.p,
+                # (optional) expose extra knobs if desired:
+                # d_model=128, nhead=8, num_encoder_layers=3, num_decoder_layers=3,
+                # dim_feedforward=256, dropout=0.1, use_causal_mask=False
+            )
+            ad_backend = tranad  # has training()/testing() with USAD-compatible signatures
+            ckpt_tag = 'TRANAD'
+        else:
+            # default: USAD
+            self.ad_model = usad.UsadModel(w_size, z_size, device=self.device)
+            ad_backend = usad
+            ckpt_tag = 'USAD'
+
+        # unified training / eval / checkpointing
+        if self.training_ad_model:
+            print(f'Training AD model: {ad_name.upper()}.')
+            self.ad_model.to(self.device)
+
+            windows, _ = utils.sliding_window(
+                self.train_x_norm, get_ys=0, y=None, size=self.ad_model_K, downsampling=self.ad_model_downsampling
+            )
+            windows_normal_train = windows[:int(np.floor(.8 * windows.shape[0]))]
+            windows_normal_val = windows[int(np.floor(.8 * windows.shape[0])):]
+
+            train_loader = torch.utils.data.DataLoader(
+                data_utils.TensorDataset(
+                    torch.from_numpy(windows_normal_train).float().view(([windows_normal_train.shape[0], w_size]))),
+                batch_size=self.ad_model_batch_size, shuffle=False, num_workers=0
+            )
+            val_loader = torch.utils.data.DataLoader(
+                data_utils.TensorDataset(
+                    torch.from_numpy(windows_normal_val).float().view(([windows_normal_val.shape[0], w_size]))),
+                batch_size=self.ad_model_batch_size, shuffle=False, num_workers=0
+            )
+
+            _ = ad_backend.training(self.ad_model_n_epochs, self.ad_model, train_loader, val_loader, device=self.device)
+
+            self.ad_model.eval()
+            results = ad_backend.testing(self.ad_model, val_loader, device=self.device)
+
+            if len(results) > 1:
+                self.y_pred = np.concatenate([
+                    torch.stack(results[:-1]).flatten().detach().cpu().numpy(),
+                    results[-1].flatten().detach().cpu().numpy()
+                ])
+            else:
+                self.y_pred = results[0].flatten().detach().cpu().numpy()
+
+            torch.save(self.ad_model.state_dict(), f'./saved_models/{ckpt_tag}_{self.save_parm}.pt')
+            np.save(f'results/y_{ckpt_tag}_{self.save_parm}_pred', self.y_pred)
+        else:
+            print(f'Loading AD model: {ad_name.upper()}.')
+            self.ad_model.load_state_dict(
+                torch.load(f'./saved_models/{ckpt_tag}_{self.save_parm}.pt', map_location=self.device))
+            self.ad_model.to(self.device)
+            self.ad_model.eval()
+            self.y_pred = np.load(f'results/y_{ckpt_tag}_{self.save_parm}_pred.npy')
+
     def _get_data(self):
         print('Preprocessing the dataset.')
         if self.dataset_name == 'linear':
@@ -155,13 +226,13 @@ class RecAD(object):
                 labels = labels.values[::1, 1:]
                 self.all_label = labels
                 labels = np.max(labels, axis=1)
-                self.train_x = df_train.astype(np.float)
+                self.train_x = df_train.astype(np.float32)
                 self.mean = np.mean(self.train_x, axis=0)
                 self.std = np.std(self.train_x, axis=0)
                 self.train_x_norm = ((self.train_x - self.mean) / self.std)
-                self.test_x = df_test.astype(np.float)
+                self.test_x = df_test.astype(np.float32)
                 self.test_x_norm = (self.test_x - self.mean) / self.std
-                self.test_label = labels.astype(np.float)
+                self.test_label = labels.astype(np.float32)
 
                 np.save('data/MSDS_train_x', self.train_x)
                 np.save('data/MSDS_train_x_norm', self.train_x_norm)
@@ -330,7 +401,9 @@ class RecAD(object):
             ), batch_size=self.ad_model_batch_size, shuffle=False, num_workers=0)
             self.ad_model.eval()
             with torch.no_grad():
-                results = usad.testing(self.ad_model, test_loader, alpha=self.ad_model_alpha, beta=self.ad_model_beta, device=self.device)
+                backend = tranad if isinstance(self.ad_model, tranad.TranADModel) else usad
+                results = backend.testing(self.ad_model, test_loader, alpha=self.ad_model_alpha,
+                                          beta=self.ad_model_beta, device=self.device)
             y_pred = np.concatenate([torch.stack(results[:-1]).flatten().detach().cpu().numpy(),
                                      results[-1].flatten().detach().cpu().numpy()])
             y_pred_label_ab = [int(i > self.mse) for i in y_pred]
@@ -690,7 +763,6 @@ class RecAD(object):
                 for i in range(len(self.rec_train_x)):
                     sample_org = self.rec_train_x[i].copy()
                     sample_cf = sample_org.copy()
-                    pred_root_cause = self._get_root_cause(sample_org)
                     early_stop = 0
                     for j in range(self.ad_model_K, len(sample_cf)):
                         if early_stop >= self.recourse_model_early_stop:
