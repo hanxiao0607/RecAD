@@ -1,6 +1,3 @@
-[![License](https://img.shields.io/badge/License-BSD%203--Clause-red.svg)](https://github.com/hanxiao0607/FADS/blob/master/LICENSE)
-![Python 3.9](https://img.shields.io/badge/python-3.9-blue.svg)
-
 # RecAD
 A Pytorch implementation of RecAD.
 
